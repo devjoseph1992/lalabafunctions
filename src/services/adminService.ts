@@ -1,38 +1,89 @@
-import { admin, FieldValue } from "../utils/firebase";
+// src/services/adminService.ts
 
+import { admin, FieldValue } from "../utils/firebase";
+import logger from "../utils/logger";
+
+/**
+ * Creates a new admin user in Firebase Authentication and Firestore.
+ * @param email - Admin's email address.
+ * @param password - Admin's password.
+ * @param name - Admin's full name.
+ * @returns The UID of the created admin and additional information.
+ */
 export const createAdmin = async (
   email: string,
   password: string,
   name: string
-) => {
+): Promise<{ uid: string; email: string; role: string }> => {
   try {
-    console.log("Starting admin creation process...");
+    // Validate inputs
+    if (!email || !password || !name) {
+      throw new Error("Email, password, and name are required.");
+    }
 
-    // Create user in Firebase Auth
-    const user = await admin
-      .auth()
-      .createUser({ email, password, displayName: name });
-    console.log("User created successfully:", user.uid);
+    if (!email.includes("@")) {
+      throw new Error("Invalid email format.");
+    }
+
+    if (password.length < 6) {
+      throw new Error("Password must be at least 6 characters long.");
+    }
+
+    logger.info("Starting admin creation process...");
+
+    // Create user in Firebase Authentication
+    let userRecord;
+    try {
+      userRecord = await admin.auth().createUser({
+        email,
+        password,
+        displayName: name,
+      });
+      logger.info("User created successfully:", userRecord.uid);
+    } catch (error) {
+      logger.error("Error creating user in Firebase Authentication:", error);
+      throw new Error("Failed to create user in Firebase Authentication.");
+    }
 
     // Set custom claims for the user
-    await admin.auth().setCustomUserClaims(user.uid, { admin: true });
-    console.log("Custom user claims set successfully.");
+    try {
+      await admin.auth().setCustomUserClaims(userRecord.uid, { role: "admin" });
+      logger.info("Custom user claims set successfully.");
+    } catch (error) {
+      logger.error("Error setting custom claims:", error);
+      throw new Error("Failed to set custom claims for the user.");
+    }
 
-    // Log the FieldValue for debugging
-    console.log("FieldValue:", FieldValue);
+    // Store user data in Firestore
+    try {
+      const userDoc = admin.firestore().collection("users").doc(userRecord.uid);
+      const docSnapshot = await userDoc.get();
 
-    // Store user data in Firestore with a server timestamp
-    await admin.firestore().collection("users").doc(user.uid).set({
-      email,
-      name,
+      if (docSnapshot.exists) {
+        throw new Error(
+          `User document with UID ${userRecord.uid} already exists.`
+        );
+      }
+
+      await userDoc.set({
+        email,
+        name,
+        role: "admin",
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      logger.info("User data written to Firestore successfully.");
+    } catch (error) {
+      logger.error("Error writing user data to Firestore:", error);
+      throw new Error("Failed to write user data to Firestore.");
+    }
+
+    return {
+      uid: userRecord.uid,
+      email: userRecord.email!,
       role: "admin",
-      createdAt: FieldValue.serverTimestamp(), // Correct usage of FieldValue
-    });
-    console.log("User data written to Firestore successfully.");
-
-    return user.uid;
+    };
   } catch (error) {
-    console.error("Error creating admin:", error);
+    logger.error("Error creating admin:", error);
     throw error;
   }
 };

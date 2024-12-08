@@ -1,3 +1,5 @@
+// src/schemas/employeeSchema.ts
+
 import { z } from "zod";
 
 // Base Schema for Common Fields
@@ -31,7 +33,7 @@ export const addRiderSchema = userBaseSchema
     philhealthNumber: z.string().nonempty("PhilHealth number is required"),
     driverLicenseNumber: z.string().optional(), // Make driver license optional
     plateNumber: z.string().nonempty("Plate number is required"),
-    vehicleUnit: z.enum(["motor", "l3", "car", "ebike"]), // Removed invalid second argument
+    vehicleUnit: z.enum(["motor", "l3", "car", "ebike"]), // Ensure all enum values are valid
     barangayClearance: z.string().optional(), // Make barangay clearance optional
   })
   .refine(

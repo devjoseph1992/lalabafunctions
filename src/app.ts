@@ -4,11 +4,9 @@ import express from "express";
 import cors from "cors"; // Import cors
 
 import adminRoutes from "./routes/admin";
-import roleRoutes from "./routes/roleRoutes";
-import riderRoutes from "./routes/riderRoutes";
+// import riderRoutes from "./routes/riderRoutes";
 import shopOwnerRoutes from "./routes/shopOwnerRoutes";
-// import walletRoutes from "./routes/walletRoutes";
-// import orderRoutes from "./routes/orderRoutes";
+import logger from "./utils/logger";
 
 const app = express();
 
@@ -17,9 +15,6 @@ const allowedOrigins = [
   "http://localhost:5173", // Development frontend
   "https://your-production-frontend.com", // Replace with your production frontend domain
   // Add other allowed origins as needed
-  // You can also use regex for dynamic subdomains
-  // /^https?:\/\/([a-z0-9-]+\.)?firebase\.com$/,
-  // /^https?:\/\/flutter\.com$/
 ];
 
 // CORS configuration
@@ -52,11 +47,8 @@ app.use(express.json());
 
 // Register routes
 app.use("/admin", adminRoutes);
-app.use("/roles", roleRoutes);
-app.use("/riders", riderRoutes);
+// app.use("/riders", riderRoutes);
 app.use("/shopOwners", shopOwnerRoutes);
-// app.use("/wallet", walletRoutes);
-// app.use("/orders", orderRoutes); // Corrected from "/orderRoutes" to "/orders"
 
 // Error handling middleware for CORS
 app.use(
@@ -71,6 +63,19 @@ app.use(
     } else {
       next(err);
     }
+  }
+);
+
+// General error handling middleware
+app.use(
+  (
+    err: any,
+    req: express.Request,
+    res: express.Response,
+    next: express.NextFunction
+  ) => {
+    logger.error("Unhandled Error:", err);
+    res.status(500).json({ message: "Internal Server Error" });
   }
 );
 
