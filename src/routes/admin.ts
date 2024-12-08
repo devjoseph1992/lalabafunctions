@@ -1,96 +1,91 @@
-import { Router, Request, Response } from "express";
+import { Router } from "express";
 import { createAdmin } from "../services/adminService";
 import {
   addEmployee,
   updateEmployee,
-  partialUpdateEmployee,
   getPaginatedEmployees,
   deleteEmployee,
+  getEmployeeCount,
 } from "../services/employeeService";
+import {
+  addRider,
+  deleteRider,
+  updateRider,
+  getPaginatedRiders,
+  getRiderCount,
+} from "../services/riderService";
+import {
+  addShopOwner,
+  deleteShopOwner,
+  updateShopOwner,
+  getPaginatedShopOwners,
+  getShopOwnerCount,
+} from "../services/shopOwnerService";
 import { verifyToken, restrictToRoles } from "../middleware/authMiddleware";
-import { addEmployeeSchema } from "../schemas/employeeSchema";
+import {
+  addEmployeeSchema,
+  addRiderSchema,
+  addShopOwnerSchema,
+} from "../schemas/employeeSchema";
 import { ZodError } from "zod";
-import logger from "../utils/logger";
 
 const router = Router();
 
+// === Admin Routes ===
+
 // Create an admin
-router.post(
-  "/create-admin",
-  async (req: Request, res: Response): Promise<void> => {
-    const { email, password, name } = req.body;
-
-    if (!email || !password || !name) {
-      logger.warn("Missing required fields: email, password, or name.");
-      res
-        .status(400)
-        .send({ message: "Email, password, and name are required" });
-      return;
-    }
-
-    try {
-      const uid = await createAdmin(email, password, name);
-      logger.info(`Admin created successfully. UID: ${uid}`);
-      res.status(201).send({ message: "Admin created successfully", uid });
-    } catch (error) {
-      logger.error("Error creating admin:", error);
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error occurred";
-      res.status(500).send({ message: errorMessage });
-    }
+router.post("/create-admin", async (req, res) => {
+  const { email, password, name } = req.body;
+  if (!email || !password || !name) {
+    res.status(400).send({ message: "Email, password, and name are required" });
+    return;
   }
-);
 
-// Add an employee
+  try {
+    const uid = await createAdmin(email, password, name);
+    res.status(201).send({ message: "Admin created successfully", uid });
+  } catch (error) {
+    res.status(500).send({
+      message:
+        error instanceof Error ? error.message : "Unknown error occurred",
+    });
+  }
+});
+
+// === Employee Routes ===
 router.post(
   "/addEmployee",
   verifyToken,
   restrictToRoles("admin"),
-  async (req: Request, res: Response): Promise<void> => {
+  async (req, res) => {
     try {
       const validatedData = addEmployeeSchema.parse(req.body);
-      logger.info("Validated data for adding employee:", validatedData);
-
       const uid = await addEmployee(validatedData);
-
-      logger.info(`Employee with UID ${uid} added successfully.`);
       res
         .status(201)
         .send({ message: `Employee with UID ${uid} added successfully.`, uid });
     } catch (error) {
       if (error instanceof ZodError) {
-        logger.warn("Validation Error:", error.errors);
-        res.status(400).send({
-          message: "Validation Error",
-          errors: error.errors.map((e) => ({
-            field: e.path.join("."),
-            message: e.message,
-          })),
-        });
-      } else if (error instanceof Error) {
-        logger.error("Error adding employee:", error.message);
-        res.status(500).send({ message: error.message });
+        res
+          .status(400)
+          .send({ message: "Validation Error", errors: error.errors });
       } else {
-        logger.error("Unknown error adding employee.");
-        res.status(500).send({ message: "Unknown error occurred" });
+        res.status(500).send({
+          message:
+            error instanceof Error ? error.message : "Unknown error occurred",
+        });
       }
     }
   }
 );
 
-// Fetch all employees
-/**
- * Route to fetch paginated employees.
- * Protected route - requires authentication and admin role.
- */
 router.get(
   "/employees",
   verifyToken,
   restrictToRoles("admin"),
-  async (req: Request, res: Response): Promise<void> => {
+  async (req, res) => {
     const page = parseInt(req.query.page as string, 10) || 1;
     const limit = parseInt(req.query.limit as string, 10) || 5;
-
     try {
       const { employees, totalPages } = await getPaginatedEmployees(
         page,
@@ -98,73 +93,220 @@ router.get(
       );
       res.status(200).send({ employees, totalPages });
     } catch (error) {
-      logger.error("Error fetching paginated employees:", error);
-      res.status(500).send({ message: "Failed to fetch paginated employees." });
+      res.status(500).send({ message: "Failed to fetch employees" });
     }
   }
 );
 
-// Update an employee
 router.put(
-  "/employees/:id",
-  async (req: Request, res: Response): Promise<void> => {
-    console.log(
-      `PUT /employees/${req.params.id} received with body:`,
-      req.body
-    );
-    const { id } = req.params;
-    const updates = req.body;
-
-    try {
-      await updateEmployee(id, updates);
-      res
-        .status(200)
-        .send({ message: `Employee with ID ${id} updated successfully.` });
-    } catch (error) {
-      console.error("Error in PUT /employees/:id:", error);
-      res.status(500).send({
-        message:
-          error instanceof Error ? error.message : "Failed to update employee.",
-      });
-    }
-  }
-);
-
-// Partially update an employee
-router.patch(
   "/employees/:id",
   verifyToken,
   restrictToRoles("admin"),
-  async (req: Request, res: Response): Promise<void> => {
-    const { id } = req.params;
-    const updates = req.body;
-
+  async (req, res) => {
     try {
-      await partialUpdateEmployee(id, updates);
-      res.status(200).send({
-        message: `Employee with ID ${id} partially updated successfully.`,
-      });
+      await updateEmployee(req.params.id, req.body);
+      res.status(200).send({ message: "Employee updated successfully" });
     } catch (error) {
-      res.status(500).send({ message: "Failed to partially update employee." });
+      res.status(500).send({ message: "Failed to update employee" });
     }
   }
 );
 
-// Delete an employee
 router.delete(
   "/employees/:id",
   verifyToken,
   restrictToRoles("admin"),
-  async (req: Request, res: Response): Promise<void> => {
-    const { id } = req.params;
-
+  async (req, res) => {
     try {
-      await deleteEmployee(id);
-      res
-        .status(200)
-        .send({ message: `Employee with ID ${id} deleted successfully.` });
+      await deleteEmployee(req.params.id);
+      res.status(200).send({ message: "Employee deleted successfully" });
     } catch (error) {
-      res.status(500).send({ message: "Failed to delete employee." });
+      res.status(500).send({ message: "Failed to delete employee" });
+    }
+  }
+);
+
+// === Rider Routes ===
+router.post(
+  "/addRider",
+  verifyToken,
+  restrictToRoles("admin"),
+  async (req, res) => {
+    try {
+      const validatedData = addRiderSchema.parse(req.body);
+      const uid = await addRider(validatedData);
+      res
+        .status(201)
+        .send({ message: `Rider with UID ${uid} added successfully.`, uid });
+    } catch (error) {
+      if (error instanceof ZodError) {
+        res
+          .status(400)
+          .send({ message: "Validation Error", errors: error.errors });
+      } else {
+        res.status(500).send({ message: "Failed to add rider" });
+      }
+    }
+  }
+);
+
+router.get(
+  "/riders",
+  verifyToken,
+  restrictToRoles("admin"),
+  async (req, res) => {
+    const page = parseInt(req.query.page as string, 10) || 1;
+    const limit = parseInt(req.query.limit as string, 10) || 5;
+    try {
+      const { riders, totalPages } = await getPaginatedRiders(page, limit);
+      res.status(200).send({ riders, totalPages });
+    } catch (error) {
+      res.status(500).send({ message: "Failed to fetch riders" });
+    }
+  }
+);
+
+router.put(
+  "/riders/:id",
+  verifyToken,
+  restrictToRoles("admin"),
+  async (req, res) => {
+    try {
+      await updateRider(req.params.id, req.body);
+      res.status(200).send({ message: "Rider updated successfully" });
+    } catch (error) {
+      res.status(500).send({ message: "Failed to update rider" });
+    }
+  }
+);
+
+router.delete(
+  "/riders/:id",
+  verifyToken,
+  restrictToRoles("admin"),
+  async (req, res) => {
+    try {
+      await deleteRider(req.params.id);
+      res.status(200).send({ message: "Rider deleted successfully" });
+    } catch (error) {
+      res.status(500).send({ message: "Failed to delete rider" });
+    }
+  }
+);
+
+// === Shop Owner Routes ===
+router.post(
+  "/addShopOwner",
+  verifyToken,
+  restrictToRoles("admin"),
+  async (req, res) => {
+    try {
+      const validatedData = addShopOwnerSchema.parse(req.body);
+      const uid = await addShopOwner(validatedData);
+      res.status(201).send({
+        message: `Shop Owner with UID ${uid} added successfully.`,
+        uid,
+      });
+    } catch (error) {
+      if (error instanceof ZodError) {
+        res
+          .status(400)
+          .send({ message: "Validation Error", errors: error.errors });
+      } else {
+        res.status(500).send({ message: "Failed to add shop owner" });
+      }
+    }
+  }
+);
+
+router.get(
+  "/shopOwners",
+  verifyToken,
+  restrictToRoles("admin"),
+  async (req, res) => {
+    const page = parseInt(req.query.page as string, 10) || 1;
+    const limit = parseInt(req.query.limit as string, 10) || 5;
+    try {
+      const { shopOwners, totalPages } = await getPaginatedShopOwners(
+        page,
+        limit
+      );
+      res.status(200).send({ shopOwners, totalPages });
+    } catch (error) {
+      res.status(500).send({ message: "Failed to fetch shop owners" });
+    }
+  }
+);
+
+router.put(
+  "/shopOwners/:id",
+  verifyToken,
+  restrictToRoles("admin"),
+  async (req, res) => {
+    try {
+      await updateShopOwner(req.params.id, req.body);
+      res.status(200).send({ message: "Shop Owner updated successfully" });
+    } catch (error) {
+      res.status(500).send({ message: "Failed to update shop owner" });
+    }
+  }
+);
+
+router.delete(
+  "/shopOwners/:id",
+  verifyToken,
+  restrictToRoles("admin"),
+  async (req, res) => {
+    try {
+      await deleteShopOwner(req.params.id);
+      res.status(200).send({ message: "Shop Owner deleted successfully" });
+    } catch (error) {
+      res.status(500).send({ message: "Failed to delete shop owner" });
+    }
+  }
+);
+
+// === Employee Count Route ===
+router.get(
+  "/employees/count",
+  verifyToken,
+  restrictToRoles("admin"),
+  async (req, res) => {
+    try {
+      const count = await getEmployeeCount();
+      res.status(200).send({ count });
+    } catch (error) {
+      res.status(500).send({ message: "Failed to fetch employee count" });
+    }
+  }
+);
+
+// === Rider Count Route ===
+router.get(
+  "/riders/count",
+  verifyToken,
+  restrictToRoles("admin"),
+  async (req, res) => {
+    try {
+      const count = await getRiderCount();
+      res.status(200).send({ count });
+    } catch (error) {
+      res.status(500).send({ message: "Failed to fetch rider count" });
+    }
+  }
+);
+
+// === Shop Owner Count Route ===
+router.get(
+  "/shopOwners/count",
+  verifyToken,
+  restrictToRoles("admin"),
+  async (req, res) => {
+    try {
+      const count = await getShopOwnerCount();
+      res.status(200).send({ count });
+    } catch (error) {
+      res.status(500).send({ message: "Failed to fetch shop owner count" });
     }
   }
 );

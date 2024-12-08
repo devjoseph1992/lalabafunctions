@@ -1,55 +1,84 @@
-// src/routes/shopOwnerRoutes.ts
-
-import { Router, Request, Response } from "express";
-import { addShopOwner } from "../services/employeeService";
+import { Router } from "express";
+import {
+  addShopOwner,
+  deleteShopOwner,
+  updateShopOwner,
+  getPaginatedShopOwners,
+} from "../services/shopOwnerService";
 import { verifyToken, restrictToRoles } from "../middleware/authMiddleware";
 import { addShopOwnerSchema } from "../schemas/employeeSchema";
-import { ZodError } from "zod";
-import logger from "../utils/logger";
+import { handleAddEntity } from "../utils/routeHelpers";
 
 const router = Router();
 
-// Route to add a shop owner with authentication and role restriction
+// Add a shop owner
 router.post(
   "/addShopOwner",
-  verifyToken, // Authenticate the user
-  restrictToRoles("admin", "employee"), // Restrict access to admins and employees
-  async (req: Request, res: Response): Promise<void> => {
+  verifyToken,
+  restrictToRoles("admin", "employee"),
+  async (req, res) => {
+    await handleAddEntity(
+      req,
+      res,
+      addShopOwnerSchema,
+      addShopOwner,
+      "Shop Owner"
+    );
+  }
+);
+
+// Get paginated shop owners
+router.get(
+  "/shopOwners",
+  verifyToken,
+  restrictToRoles("admin"),
+  async (req, res) => {
+    const page = parseInt(req.query.page as string, 10) || 1;
+    const limit = parseInt(req.query.limit as string, 10) || 5;
+
     try {
-      // Validate request body using Zod
-      const validatedData = addShopOwnerSchema.parse(req.body);
-      logger.info("Validated data for adding shop owner:", validatedData);
-
-      // Pass the validated data to the service layer
-      const uid = await addShopOwner(validatedData);
-
-      res
-        .status(201)
-        .send({
-          message: `Shop Owner with UID ${uid} added successfully.`,
-          uid,
-        });
+      const { shopOwners, totalPages } = await getPaginatedShopOwners(
+        page,
+        limit
+      );
+      res.status(200).send({ shopOwners, totalPages });
     } catch (error) {
-      if (error instanceof ZodError) {
-        // Handle Zod validation errors
-        res.status(400).send({
-          message: "Validation Error",
-          errors: error.errors.map((e) => ({
-            field: e.path.join("."),
-            message: e.message,
-          })),
-        });
-      } else if (error instanceof Error) {
-        logger.error("Error adding shop owner:", error);
-        res.status(500).send({
-          message: error.message,
-        });
-      } else {
-        logger.error("Unknown error adding shop owner:", error);
-        res.status(500).send({
-          message: "Unknown error occurred",
-        });
-      }
+      res.status(500).send({ message: "Failed to fetch shop owners" });
+    }
+  }
+);
+
+// Update a shop owner
+router.put(
+  "/shopOwners/:id",
+  verifyToken,
+  restrictToRoles("admin"),
+  async (req, res) => {
+    const { id } = req.params;
+    const updates = req.body;
+
+    try {
+      await updateShopOwner(id, updates);
+      res.status(200).send({ message: "Shop Owner updated successfully" });
+    } catch (error) {
+      res.status(500).send({ message: "Failed to update shop owner" });
+    }
+  }
+);
+
+// Delete a shop owner
+router.delete(
+  "/shopOwners/:id",
+  verifyToken,
+  restrictToRoles("admin"),
+  async (req, res) => {
+    const { id } = req.params;
+
+    try {
+      await deleteShopOwner(id);
+      res.status(200).send({ message: "Shop Owner deleted successfully" });
+    } catch (error) {
+      res.status(500).send({ message: "Failed to delete shop owner" });
     }
   }
 );

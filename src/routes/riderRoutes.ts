@@ -1,52 +1,75 @@
-// src/routes/riderRoutes.ts
-
-import { Router, Request, Response } from "express";
-import { addRider } from "../services/employeeService";
+import { Router } from "express";
+import {
+  addRider,
+  deleteRider,
+  updateRider,
+  getPaginatedRiders,
+} from "../services/riderService";
 import { verifyToken, restrictToRoles } from "../middleware/authMiddleware";
 import { addRiderSchema } from "../schemas/employeeSchema";
-import { ZodError } from "zod";
-import logger from "../utils/logger";
+import { handleAddEntity } from "../utils/routeHelpers";
 
 const router = Router();
 
-// Route to add a rider with authentication and role restriction
+// Add a rider
 router.post(
   "/addRider",
-  verifyToken, // Authenticate the user
-  restrictToRoles("admin", "employee"), // Restrict access to admins and employees
-  async (req: Request, res: Response): Promise<void> => {
+  verifyToken,
+  restrictToRoles("admin", "employee"),
+  async (req, res) => {
+    await handleAddEntity(req, res, addRiderSchema, addRider, "Rider");
+  }
+);
+
+// Get paginated riders
+router.get(
+  "/riders",
+  verifyToken,
+  restrictToRoles("admin"),
+  async (req, res) => {
+    const page = parseInt(req.query.page as string, 10) || 1;
+    const limit = parseInt(req.query.limit as string, 10) || 5;
+
     try {
-      // Validate request body using Zod
-      const validatedData = addRiderSchema.parse(req.body);
-      logger.info("Validated data for adding rider:", validatedData);
-
-      // Pass the validated data to the service layer
-      const uid = await addRider(validatedData);
-
-      res
-        .status(201)
-        .send({ message: `Rider with UID ${uid} added successfully.`, uid });
+      const { riders, totalPages } = await getPaginatedRiders(page, limit);
+      res.status(200).send({ riders, totalPages });
     } catch (error) {
-      if (error instanceof ZodError) {
-        // Handle Zod validation errors
-        res.status(400).send({
-          message: "Validation Error",
-          errors: error.errors.map((e) => ({
-            field: e.path.join("."),
-            message: e.message,
-          })),
-        });
-      } else if (error instanceof Error) {
-        logger.error("Error adding rider:", error);
-        res.status(500).send({
-          message: error.message,
-        });
-      } else {
-        logger.error("Unknown error adding rider:", error);
-        res.status(500).send({
-          message: "Unknown error occurred",
-        });
-      }
+      res.status(500).send({ message: "Failed to fetch riders" });
+    }
+  }
+);
+
+// Update a rider
+router.put(
+  "/riders/:id",
+  verifyToken,
+  restrictToRoles("admin"),
+  async (req, res) => {
+    const { id } = req.params;
+    const updates = req.body;
+
+    try {
+      await updateRider(id, updates);
+      res.status(200).send({ message: "Rider updated successfully" });
+    } catch (error) {
+      res.status(500).send({ message: "Failed to update rider" });
+    }
+  }
+);
+
+// Delete a rider
+router.delete(
+  "/riders/:id",
+  verifyToken,
+  restrictToRoles("admin"),
+  async (req, res) => {
+    const { id } = req.params;
+
+    try {
+      await deleteRider(id);
+      res.status(200).send({ message: "Rider deleted successfully" });
+    } catch (error) {
+      res.status(500).send({ message: "Failed to delete rider" });
     }
   }
 );

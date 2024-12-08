@@ -1,9 +1,5 @@
 import { admin, FieldValue } from "../utils/firebase";
-import {
-  addEmployeeSchema,
-  addRiderSchema,
-  addShopOwnerSchema,
-} from "../schemas/employeeSchema";
+import { addEmployeeSchema } from "../schemas/employeeSchema";
 import { z } from "zod";
 import logger from "../utils/logger";
 
@@ -159,31 +155,6 @@ export const updateEmployee = async (
 };
 
 /**
- * Partially updates an employee's data in Firestore.
- * @param id - Employee ID.
- * @param updates - Partial data to update.
- */
-export const partialUpdateEmployee = async (
-  id: string,
-  updates: Partial<any>
-): Promise<void> => {
-  try {
-    const employeeRef = admin.firestore().collection("users").doc(id);
-    const employeeDoc = await employeeRef.get();
-
-    if (!employeeDoc.exists) {
-      throw new Error(`Employee with ID ${id} not found.`);
-    }
-
-    await employeeRef.update(updates);
-    logger.info(`Employee with ID ${id} partially updated successfully.`);
-  } catch (error) {
-    logger.error("Error partially updating employee:", error);
-    throw new Error("Failed to partially update employee.");
-  }
-};
-
-/**
  * Deletes an employee from Firestore and Firebase Authentication.
  * @param id - Employee ID.
  */
@@ -206,91 +177,23 @@ export const deleteEmployee = async (id: string): Promise<void> => {
 };
 
 /**
- * Adds a new rider to Firebase Authentication and Firestore.
- * @param data - Rider data validated by Zod.
- * @returns The UID of the created rider.
+ * Fetches the total count of employees from Firestore.
+ * @returns The total number of employees.
  */
-export const addRider = async (
-  data: z.infer<typeof addRiderSchema>
-): Promise<string> => {
+export const getEmployeeCount = async (): Promise<number> => {
   try {
-    // Validate data using Zod schema
-    const validatedData = addRiderSchema.parse(data);
-    logger.info("Validated rider data:", validatedData);
-
-    // Create user in Firebase Authentication
-    const userRecord = await admin.auth().createUser({
-      email: validatedData.email,
-      password: validatedData.password,
-      displayName: `${validatedData.firstName} ${validatedData.lastName}`,
-    });
-    logger.info("Rider user created with UID:", userRecord.uid);
-
-    // Set custom claims for the user
-    await admin.auth().setCustomUserClaims(userRecord.uid, { role: "rider" });
-    logger.info("Custom user claims set successfully.");
-
-    // Add user data to Firestore
-    await admin
+    const employeesRef = admin
       .firestore()
       .collection("users")
-      .doc(userRecord.uid)
-      .set({
-        ...validatedData,
-        role: "rider",
-        createdAt: FieldValue.serverTimestamp(),
-      });
-    logger.info("Rider data added to Firestore for UID:", userRecord.uid);
+      .where("role", "==", "employee");
 
-    return userRecord.uid;
+    // Get total count of employees
+    const totalDocs = (await employeesRef.get()).size;
+
+    logger.info(`Total employees count: ${totalDocs}`);
+    return totalDocs;
   } catch (error) {
-    logger.error("Error adding rider:", error);
-    throw error;
-  }
-};
-
-/**
- * Adds a new shop owner to Firebase Authentication and Firestore.
- * @param data - Shop owner data validated by Zod.
- * @returns The UID of the created shop owner.
- */
-export const addShopOwner = async (
-  data: z.infer<typeof addShopOwnerSchema>
-): Promise<string> => {
-  try {
-    // Validate data using Zod schema
-    const validatedData = addShopOwnerSchema.parse(data);
-    logger.info("Validated shop owner data:", validatedData);
-
-    // Create user in Firebase Authentication
-    const userRecord = await admin.auth().createUser({
-      email: validatedData.email,
-      password: validatedData.password,
-      displayName: `${validatedData.firstName} ${validatedData.lastName}`,
-    });
-    logger.info("Shop Owner user created with UID:", userRecord.uid);
-
-    // Set custom claims for the user
-    await admin
-      .auth()
-      .setCustomUserClaims(userRecord.uid, { role: "shopOwner" });
-    logger.info("Custom user claims set successfully.");
-
-    // Add user data to Firestore
-    await admin
-      .firestore()
-      .collection("users")
-      .doc(userRecord.uid)
-      .set({
-        ...validatedData,
-        role: "shopOwner",
-        createdAt: FieldValue.serverTimestamp(),
-      });
-    logger.info("Shop Owner data added to Firestore for UID:", userRecord.uid);
-
-    return userRecord.uid;
-  } catch (error) {
-    logger.error("Error adding shop owner:", error);
-    throw error;
+    logger.error("Error fetching employee count:", error);
+    throw new Error("Could not fetch employee count.");
   }
 };
