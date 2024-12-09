@@ -5,7 +5,7 @@ import cors from "cors"; // Import cors
 
 import adminRoutes from "./routes/admin";
 // import riderRoutes from "./routes/riderRoutes";
-import shopOwnerRoutes from "./routes/shopOwnerRoutes";
+
 import logger from "./utils/logger";
 
 const app = express();
@@ -47,8 +47,6 @@ app.use(express.json());
 
 // Register routes
 app.use("/admin", adminRoutes);
-// app.use("/riders", riderRoutes);
-app.use("/shopOwners", shopOwnerRoutes);
 
 // Error handling middleware for CORS
 app.use(

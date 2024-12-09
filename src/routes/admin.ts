@@ -130,7 +130,7 @@ router.delete(
 router.post(
   "/addRider",
   verifyToken,
-  restrictToRoles("admin"),
+  restrictToRoles("admin", "employee"),
   async (req, res) => {
     try {
       const validatedData = addRiderSchema.parse(req.body);
@@ -153,7 +153,7 @@ router.post(
 router.get(
   "/riders",
   verifyToken,
-  restrictToRoles("admin"),
+  restrictToRoles("admin", "employee"),
   async (req, res) => {
     const page = parseInt(req.query.page as string, 10) || 1;
     const limit = parseInt(req.query.limit as string, 10) || 5;
@@ -198,7 +198,7 @@ router.delete(
 router.post(
   "/addShopOwner",
   verifyToken,
-  restrictToRoles("admin"),
+  restrictToRoles("admin", "employee"),
   async (req, res) => {
     try {
       const validatedData = addShopOwnerSchema.parse(req.body);
@@ -222,7 +222,7 @@ router.post(
 router.get(
   "/shopOwners",
   verifyToken,
-  restrictToRoles("admin"),
+  restrictToRoles("admin", "employee"),
   async (req, res) => {
     const page = parseInt(req.query.page as string, 10) || 1;
     const limit = parseInt(req.query.limit as string, 10) || 5;
@@ -285,7 +285,7 @@ router.get(
 router.get(
   "/riders/count",
   verifyToken,
-  restrictToRoles("admin"),
+  restrictToRoles("admin", "employee"),
   async (req, res) => {
     try {
       const count = await getRiderCount();
@@ -300,7 +300,7 @@ router.get(
 router.get(
   "/shopOwners/count",
   verifyToken,
-  restrictToRoles("admin"),
+  restrictToRoles("admin", "employee"),
   async (req, res) => {
     try {
       const count = await getShopOwnerCount();
